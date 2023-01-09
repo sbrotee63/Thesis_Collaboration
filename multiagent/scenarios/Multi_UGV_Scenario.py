@@ -3,6 +3,8 @@ import random
 from multiagent.core import World, Agent, Landmark
 from multiagent.scenario import BaseScenario
 
+critical_area = 0.1
+target_range = 0.1
 
 class Scenario(BaseScenario):
     def make_world(self):
@@ -84,6 +86,7 @@ class Scenario(BaseScenario):
         rew = 0
         ag_collisions = 0
         ob_collisions = 0
+        un_collisions = 0
         occupied_landmarks = 0
         min_dists = 0
         i = 0
@@ -93,25 +96,46 @@ class Scenario(BaseScenario):
             dists = [np.sqrt(np.sum(np.square(a.state.p_pos - l.state.p_pos))) for a in world.agents]
             min_dists += min(dists)
             rew -= min(dists)
-            if min(dists) < 0.1:
+            if min(dists) < target_range:
                 occupied_landmarks += 1
                 world.landmarks_reached[i] = True
             i += 1
 
+        '''for o in world.obs:
+            delta_pos = agent1.state.p_pos - agent2.state.p_pos
+            dist = np.sqrt(np.sum(np.square(delta_pos)))
+            dist_min = agent1.size + agent2.size
+            if dist > dist_min:
+                dist = dist - dist_min
+                if dist < 0.1:
+                    rew -= ((0.1 - dist) / 0.1)
+            else:
+                rew -= 1
+                ob_collisions += 1'''
+
         if agent.collide:
             for a in world.agents:
-                if self.is_collision(a, agent):
-                    rew -= 1
-                    ag_collisions += 1
+                if agent != a:
+                    delta_pos = agent.state.p_pos - a.state.p_pos
+                    dist = np.sqrt(np.sum(np.square(delta_pos)))
+                    dist_min = agent.size + a.size
+                    if dist < dist_min + critical_area:
+                        rew -= ((dist_min + critical_area - dist) / critical_area)
+                    if self.is_collision(agent, a):
+                        ag_collisions += 1
             for o in world.obs:
-                if self.is_collision(o, agent):
-                    rew -= 1
+                delta_pos = agent.state.p_pos - o.state.p_pos
+                dist = np.sqrt(np.sum(np.square(delta_pos)))
+                dist_min = agent.size + o.size
+                if dist < dist_min + critical_area:
+                    rew -= ((dist_min + critical_area - dist) / critical_area)
+                if self.is_collision(agent, o):
                     ob_collisions += 1
             for u in world.uneven:
                 if self.is_collision(u, agent):
-                    rew -= 0.5
-                    # ob_collisions += 1
-        return (rew, ag_collisions, ob_collisions, min_dists, sum(world.landmarks_reached))
+                    rew -= 0.05
+                    un_collisions += 1
+        return (rew, ag_collisions, ob_collisions, un_collisions, min_dists, sum(world.landmarks_reached))
 
     def is_collision(self, agent1, agent2):
         delta_pos = agent1.state.p_pos - agent2.state.p_pos
@@ -131,14 +155,21 @@ class Scenario(BaseScenario):
             i += 1
         if agent.collide:
             for a in world.agents:
-                if self.is_collision(a, agent):
-                    rew -= 1
+                if agent != a:
+                    delta_pos = agent.state.p_pos - a.state.p_pos
+                    dist = np.sqrt(np.sum(np.square(delta_pos)))
+                    dist_min = agent.size + a.size
+                    if dist < dist_min + critical_area:
+                        rew -= ((dist_min + critical_area - dist) / critical_area)
             for o in world.obs:
-                if self.is_collision(o, agent):
-                    rew -= 1
+                delta_pos = agent.state.p_pos - o.state.p_pos
+                dist = np.sqrt(np.sum(np.square(delta_pos)))
+                dist_min = agent.size + o.size
+                if dist < dist_min + critical_area:
+                    rew -= ((dist_min + critical_area - dist) / critical_area)
             for u in world.uneven:
                 if self.is_collision(u, agent):
-                    rew -= 0.5
+                    rew -= 0.05
             return rew
 
     def observation(self, agent, world):
